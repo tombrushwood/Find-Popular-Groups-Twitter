@@ -27,8 +27,8 @@ priority_keywords = str(input("Enter a comma separated list of keywords to look 
 # NB: great list for influencers:
 # founder, chair, editor, author, journalist, writer, professor, chancellor, campaigner, TV presenter, broadcaster, trustee, ceo, chief exec, executive
 
-# NB: great list for orgs:
-# activist, campaigning for, group, charity
+# NB: great list for sports:
+# Community, competition, free, event, spaces, olympic, run, sport, active, activity
 
 
 # =================
