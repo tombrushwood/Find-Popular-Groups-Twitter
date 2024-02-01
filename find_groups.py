@@ -428,8 +428,10 @@ def get_search_results(query_list, batch_size, max_tweets):
         except IndexError as e:
             print("tried to find user '%s', but they may have been suspended or deleted. Error reported: %s" % (entry["username"], e))
 
+    priority_user_table.sort(key=lambda item:item['followers_count'], reverse=True)
     priority_user_table.sort(key=lambda item:item['mentions_count'], reverse=True)
     user_table.extend(priority_user_table)
+    other_user_table.sort(key=lambda item:item['followers_count'], reverse=True)
     other_user_table.sort(key=lambda item:item['mentions_count'], reverse=True)
     user_table.extend(other_user_table)
     user_table_headers = ["Name","Username", "Profile URL", "Description", "Location", "URL", "Verified", "Follower Count", "Listed Count", "No. Mentions", "Users Who Mentioned Them", "Example Tweet", "Priority", "Notes"]
