@@ -154,18 +154,23 @@ def get_parsed_users_from_raw_json(raw_user_json):
         user_list[i]['username'] = raw_user_json['data'][i]['username'] # KEY
         user_list[i]['name'] = raw_user_json['data'][i]['name']
         user_list[i]['description'] = re.sub(r"\n|\r", " ", raw_user_json['data'][i]['description']) # sanitise
+        # set user_list[i]['location']
         if 'location' in raw_user_json['data'][i]:
             user_list[i]['location'] = raw_user_json['data'][i]['location']
         else:
             user_list[i]['location'] = None
-        user_list[i]['verified'] = raw_user_json['data'][i]['verified']
+        # set user_list[i]['verified']
+        if raw_user_json['data'][i]['verified']:
+            user_list[i]['verified'] = 'Yes'
+        else:
+            user_list[i]['verified'] = 'No'
         user_list[i]['followers_count'] = raw_user_json['data'][i]['public_metrics']['followers_count']
         user_list[i]['listed_count'] = raw_user_json['data'][i]['public_metrics']['listed_count']
         # set user_list['url']
-        if ('entities' in raw_user_json['data'][i]) and ('url' in raw_user_json['data'][i]['entities']) and ('urls' in raw_user_json['data'][i]['entities']['url']['urls']) and ('expanded_url' in raw_user_json['data'][i]['entities']['url']['urls']['expanded_url']):
-            user_list[i]['url'] = raw_user_json['data'][i]['entities']['url']['urls']['expanded_url']
+        if ('entities' in raw_user_json['data'][i]) and ('url' in raw_user_json['data'][i]['entities']) and ('urls' in raw_user_json['data'][i]['entities']['url']) and ('expanded_url' in raw_user_json['data'][i]['entities']['url']['urls'][0]['expanded_url']):
+            user_list[i]['url'] = raw_user_json['data'][i]['entities']['url']['urls'][0]['expanded_url']
         else:
-            user_list[i]['url'] = None
+            user_list[i]['url'] = " "
 
     return user_list
 
@@ -404,9 +409,9 @@ def get_search_results(query_list, batch_size, max_tweets):
                 "profile_url": "https://www.twitter.com/" + entry["username"],
                 "description": user_data[i]['description'], # retreive from user_data table
                 "location": user_data[i]['location'], # retreive from user_data table
-                "url": user_data[i]['url'], # retreive from user_data table - might be None
+                "url": user_data[i]['url'], # retreive from user_data table - might be " "
                 "verified": user_data[i]['verified'], # retreive from user_data table
-                "followers_count": user_data[i]['verified'], # retreive from user_data table
+                "followers_count": user_data[i]['followers_count'], # retreive from user_data table
                 "listed_count": user_data[i]['listed_count'], # retreive from user_data table
                 "mentions_count": len(entry["mentioned_by_users"]),
                 "mentioned_by_users": line_break.join(entry["mentioned_by_users"][:5]) + ', ...',
