@@ -4,15 +4,16 @@ import requests
 from urllib.parse import quote
 from tabulate import tabulate
 
+# Note: Make sure you pip install each of the libraries above before running this file - and look at x_auth-example.py for some pointers on getting started
 
 # =================
 # CUSTOMISATION
 # =================
 
 query= str(input("Enter search term: \n"))
-batch_size = 100 # Testing only [10-100 range] # per batch - @@@ remove
-max_tweets = 500 # required - limit total results
-from_days_ago = 7 # required - limit  @@@ get rid of this - max 7 days ago
+batch_size = 100 # [10-100 range] per batch
+max_tweets = 500 # required - limit total results to this number
+from_days_ago = 7 # required - limit to previous X days - cannot be more than 7
 
 # Configure additional fields needed
 tweet_fields = "created_at,author_id,conversation_id,public_metrics,text"
@@ -21,7 +22,7 @@ user_fields = "name,username,location,verified"
 media_fields = ""
 
 # Keywords to look for in the descriptions of users mentioned
-priority_keywords = "activist, campaigning for, group, charity" # str(input("Enter a comma separated list of keywords to look for in user descriptions: \n"))
+priority_keywords = str(input("Enter a comma separated list of keywords to look for in user descriptions: \n"))
 
 # NB: great list for influencers:
 # founder, chair, editor, author, journalist, writer, professor, chancellor, campaigner, TV presenter, broadcaster, trustee, ceo, chief exec, executive
