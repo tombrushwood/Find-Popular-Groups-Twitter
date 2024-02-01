@@ -10,8 +10,8 @@ from tabulate import tabulate
 # =================
 
 query= str(input("Enter search term: \n"))
-batch_size = 10 # Testing only [10-100 range] # per batch - @@@ remove
-max_tweets = 10 # required - limit total results
+batch_size = 100 # Testing only [10-100 range] # per batch - @@@ remove
+max_tweets = 500 # required - limit total results
 from_days_ago = 7 # required - limit  @@@ get rid of this - max 7 days ago
 
 # Configure additional fields needed
@@ -232,7 +232,7 @@ def get_all_tweets_from_search_queries(query_list, batch_size, max_tweets):
             continue
 
         # Keep grabbing tweets until there are no tweets left to grab
-        while ( len(new_tweets) > 0 ) and ( len(all_tweets_in_loop[i]) < max_tweets ): # @@@ Add batch_start_days_ago back in
+        while ( len(new_tweets) > 0 ) and ( len(all_tweets_in_loop[i]) < max_tweets ) and ( next_token ):
 
             # Try to get more tweets
             try:
@@ -254,7 +254,8 @@ def get_all_tweets_from_search_queries(query_list, batch_size, max_tweets):
                     print("len(new_tweets): " + str(len(new_tweets))) # debug
                     print(new_tweets) # debug
                     next_token = get_next_token_from_raw_json(r.json()) # get the next page for the paginator
-                    print("next_token: " + next_token) # debug
+                    if next_token:
+                        print("next_token: " + next_token) # debug
                     all_tweets_in_loop[i].extend(new_tweets) # If tweets found, add them to all_tweets_in_loop
                     print("len(all_tweets_in_loop[i]): " + str( len(all_tweets_in_loop[i])) ) # debug
                     print("...%s tweets downloaded so far" % ( len(all_tweets_in_loop[i])) ) # debug
@@ -270,15 +271,15 @@ def get_all_tweets_from_search_queries(query_list, batch_size, max_tweets):
         utc_now = datetime.datetime.now(pytz.utc)
         tweets_in_range = list(filter(lambda x: (utc_now - datetime.datetime.fromisoformat(x['created_at'])).days < from_days_ago, all_tweets_in_loop[i]))
 
-        print('len(tweets_in_range): ' + str(len(tweets_in_range))) # debug
+        print('\nlen(tweets_in_range): ' + str(len(tweets_in_range))) # debug
 
         if tweets_in_range:
             print("Found %d tweets from term '%s' over the last %d days. Earliest one found %d days ago (%s)" % (len(tweets_in_range), query, from_days_ago, (utc_now - datetime.datetime.fromisoformat(tweets_in_range[-1]['created_at'])).days, datetime.datetime.fromisoformat(tweets_in_range[-1]['created_at'])))
             returned_tweet_data.extend(tweets_in_range)
         else:
-            print("Found 0 tweets from term '%s' over the last %d days." % (query, from_days_ago))
+            print("\nFound 0 tweets from term '%s' over the last %d days." % (query, from_days_ago))
 
-        print('len(returned_tweet_data): ' + str(len(returned_tweet_data))) # debug
+        print('\nlen(returned_tweet_data): ' + str(len(returned_tweet_data))) # debug
         
     return returned_tweet_data
 
@@ -287,7 +288,7 @@ def get_search_results(query_list, batch_size, max_tweets):
 
     # Error checking
     if not query_list:
-        print("Please specify a search term")
+        print("\nPlease specify a search term")
         return False
 
     # Fetch all tweets from users in list, one by one
@@ -336,14 +337,14 @@ def get_search_results(query_list, batch_size, max_tweets):
                     if len(tweet['full_text']) > len(users_mentioned[i]["example_tweet"]):
                         users_mentioned[i]["example_tweet"] = tweet['full_text']
 
-    print('len(users_mentioned): ' + str(len(users_mentioned))) # debug
+    print('\nlen(users_mentioned): ' + str(len(users_mentioned))) # debug
     print(users_mentioned) # debug
 
     
     # GET USER DATA FOR MENTIONED USERS
     # Note: We now have a list of users mentioned in tweets (users_mentioned), but we don't know much about them - time to get information about who they are
 
-    print("looking up %d users" % len(users_mentioned))
+    print("\nlooking up %d users" % len(users_mentioned))
     user_data = []
     # we're using username as a search key to find the data
     all_usernames = [u['username'] for u in users_mentioned]
@@ -371,7 +372,7 @@ def get_search_results(query_list, batch_size, max_tweets):
             time.sleep(30)
             continue
 
-    print('len(user_data): ' + str(len(user_data))) # debug
+    print('\nlen(user_data): ' + str(len(user_data))) # debug
     print(user_data) # debug
 
     # Debug - save json list of users found
@@ -419,7 +420,7 @@ def get_search_results(query_list, batch_size, max_tweets):
                 item["priority"] = "no"
                 other_user_table.append(item)
         except IndexError as e:
-            print("tried to find user '%s', but they may have been suspended or deleted. Error reported: %s" % (entry["screen_name"], e))
+            print("tried to find user '%s', but they may have been suspended or deleted. Error reported: %s" % (entry["username"], e))
 
     priority_user_table.sort(key=lambda item:item['mentions_count'], reverse=True)
     user_table.extend(priority_user_table)
@@ -430,7 +431,7 @@ def get_search_results(query_list, batch_size, max_tweets):
 
     # print final results to console
     printable_table_rows = [x[:4] for x in user_table_rows]
-    print(tabulate(printable_table_rows[:5], user_table_headers[:4], tablefmt="psql"))
+    print(tabulate(printable_table_rows[:5], user_table_headers[:4], tablefmt="psql", maxcolwidths=50))
 
 
     # WRITE RESULTS TO CSV FILE
