@@ -25,13 +25,14 @@ batch_size = 10 # Testing only [10-100 range] # per batch - @@@ remove
 max_tweets = 25 # required - limit total results
 from_days_ago = 28 # required - limit  @@@ get rid of this - max 7 days ago
 
-# FULL SET OF ADDITIONAL FIELDS
+# Configure additional fields needed
 tweet_fields = "created_at,author_id,conversation_id,public_metrics,text"
 expansions = "author_id,referenced_tweets.id,in_reply_to_user_id"
 user_fields = "name,username,location,verified"
 media_fields = ""
 
 
+# Clean the data and assemble the tweet_list object
 def get_parsed_tweets_from_raw_json(raw_tweet_json):
 
     # set variables
@@ -43,8 +44,16 @@ def get_parsed_tweets_from_raw_json(raw_tweet_json):
     # For each tweet in raw response
     for i in range(result_count):
 
-        # Clean the data and assemble the tweet_list object
+        # We need to transform the data so it's more useable
 
+        # tweet = {
+        #     id: 123,
+        #     name: 'XXX',
+        #     username: 'XXX',
+        #     full_text: 'XXX',
+        #     created_at: 'Datetime'
+        # }
+        
         tweet_list[i] = {}
         # set tweet_list['id']
         tweet_list[i]['id'] = raw_tweet_json['data'][i]['id']
@@ -101,6 +110,7 @@ def get_all_tweets_from_search_queries(query_list, batch_size, max_tweets):
 
     # init vars
     returned_tweet_data = []
+    new_tweets = []
     all_tweets_in_loop = [[] for i in range(len(query_list))]
     next_token = ""
     print("\nFinding tweets from %d search terms in list" % len(query_list))
@@ -110,124 +120,81 @@ def get_all_tweets_from_search_queries(query_list, batch_size, max_tweets):
 
         print("\nFinding tweets from search term '%s'..." % query)
 
-        # ===================================
-        # CONSTRUCTING THE FIRST DATA REQUEST
-        # ===================================
-
-        # Construct Twitter URL
-        url = 'https://api.twitter.com/2/tweets/search/recent'
-        headers = {
-            'Authorization': 'Bearer ' + BEARER_TOKEN
-        }
-        query_string = (
-            f'?query={quote(query)}'
-            f'&max_results={batch_size}'
-            f'&tweet.fields={tweet_fields}'
-            f'&expansions={expansions}'
-            f'&user.fields={user_fields}'
-            f'&media.fields={media_fields}'
-        )
-        full_url = url + query_string
-        print(full_url)
-
         # Make initial request for most recent tweets (100 is the maximum allowed count per batch)
         try:
-            # =================================
-            # SENDING THE FIRST DATA REQUEST
-            # =================================
-
-            r = requests.get(full_url, headers=headers)
+            # Construct and send first data request
+            url = 'https://api.twitter.com/2/tweets/search/recent'
+            headers = { 'Authorization': 'Bearer ' + BEARER_TOKEN }
+            query_string = (f'?query={quote(query)}&max_results={batch_size}&tweet.fields={tweet_fields}&expansions={expansions}&user.fields={user_fields}&media.fields={media_fields}')
+            r = requests.get(url + query_string, headers=headers)
+            
             # If the request was successful
             if r.status_code == 200: 
-                
-                # Get a nice, organised list of tweets
-                new_tweets = get_parsed_tweets_from_raw_json(r.json())
-
-                # get the next page for the paginator
-                next_token = get_next_token_from_raw_json(r.json())
-
-                # If tweets found, add them to the all_tweets_in_loop array
-                all_tweets_in_loop[i].extend(new_tweets)
-
-                # save the id of the oldest tweet less one
-                # oldest = all_tweets_in_loop[i][-1].id - 1
-                # batch_start_days_ago = utc_now - all_tweets_in_loop[i][-1].includes['users'][0]['created_at']  @@@ Add in
-
+                new_tweets = get_parsed_tweets_from_raw_json(r.json())# Get a nice, organised list of tweets
+                print("len(new_tweets): " + str(len(new_tweets))) # debug
+                print(new_tweets) # debug
+                next_token = get_next_token_from_raw_json(r.json()) # get the next page for the paginator
+                print("next_token: " + next_token) # debug
+                all_tweets_in_loop[i].extend(new_tweets) # If tweets found, add them to all_tweets_in_loop
+                print("len(all_tweets_in_loop[i]): " + str( len(all_tweets_in_loop[i])) ) # debug
+                print("...%s tweets downloaded so far" % ( len(all_tweets_in_loop[i])) ) # debug
+                # batch_start_days_ago = utc_now - all_tweets_in_loop[i][-1]['created_at'] # save the created_at of the oldest tweet
             else:
-                print("Failed to retrieve data:", response.status_code, response.text)
+                print("Failed to retrieve data:", r.status_code, r.text)
+
         except requests.RequestException as e:
             print("\nReceived an error from Twitter. Waiting 30 seconds before retry. Error returned:", e, "\n")
             time.sleep(30)
             continue
 
-        # If tweets were found...
-        if new_tweets:
+        # Keep grabbing tweets until there are no tweets left to grab
+        while ( len(new_tweets) > 0 ) and ( len(all_tweets_in_loop[i]) < max_tweets ): # @@@ Add batch_start_days_ago back in
 
-            # Keep grabbing tweets until there are no tweets left to grab
-            while (new_tweets) and (len(all_tweets_in_loop[i]) < max_tweets): # @@@ Add batch_start_days_ago back in
+            # Try to get more tweets
+            try:
+                print("next_token: " + next_token) # debug
 
-                print("...%s tweets downloaded so far" % (len(all_tweets_in_loop[i])))
-
-                # ====================================
-                # CONSTRUCT ADDITIONAL DATA REQUESTS
-                # ====================================
-
-                # Construct Twitter URL
+                # Construct and send further data requests
                 url = 'https://api.twitter.com/2/tweets/search/recent'
-                headers = {
-                    'Authorization': 'Bearer ' + BEARER_TOKEN
-                }
+                headers = { 'Authorization': 'Bearer ' + BEARER_TOKEN }
                 query_string = (
-                    f'?query={quote(query)}'
-                    f'&max_results={batch_size}'
-                    f'&tweet.fields={tweet_fields}'
-                    f'&expansions={expansions}'
-                    f'&user.fields={user_fields}'
-                    f'&media.fields={media_fields}'
-                    f'&next_token={next_token}' # added
+                    f'?query={quote(query)}&max_results={batch_size}&tweet.fields={tweet_fields}&expansions={expansions}&user.fields={user_fields}&media.fields={media_fields}'
+                    f'&next_token={next_token}'
                 )
-                full_url = url + query_string
-                print(full_url)
+                print(url + query_string) # debug
+                r = requests.get(url + query_string, headers=headers)
 
-                # Try to get more tweets
-                try:
-
-                    # ================================
-                    # SEND ADDITIONAL DATA REQUESTS
-                    # ================================
-
-                    # generate the request
-                    r = requests.get(full_url, headers=headers)
-
-                    # If the request was successful
-                    if r.status_code == 200: 
-                        new_tweets = get_parsed_tweets_from_raw_json(r.json())
-                        next_token = get_next_token_from_raw_json(r.json())
-
-                        # If tweets found, add them to the all_tweets_in_loop array
-                        all_tweets_in_loop[i].extend(new_tweets)
-
-                        # save the id of the oldest tweet less one
-                        # oldest = all_tweets_in_loop[i][-1].id - 1
-                        # batch_start_days_ago = utc_now - all_tweets_in_loop[i][-1].includes['users'][0]['created_at']  @@@ Add in
-
-                    else:
-                        print("Failed to retrieve data:", response.status_code, response.text)
-                except requests.RequestException as e:
-                    print("\nReceived an error from Twitter. Waiting 30 seconds before retry. Error returned:", e, "\n")
-                    time.sleep(30)
-                    continue
+                # If the request was successful
+                if r.status_code == 200: 
+                    new_tweets = get_parsed_tweets_from_raw_json(r.json()) # Get a nice, organised list of tweets
+                    print("len(new_tweets): " + str(len(new_tweets))) # debug
+                    print(new_tweets) # debug
+                    next_token = get_next_token_from_raw_json(r.json()) # get the next page for the paginator
+                    print("next_token: " + next_token) # debug
+                    all_tweets_in_loop[i].extend(new_tweets) # If tweets found, add them to all_tweets_in_loop
+                    print("len(all_tweets_in_loop[i]): " + str( len(all_tweets_in_loop[i])) ) # debug
+                    print("...%s tweets downloaded so far" % ( len(all_tweets_in_loop[i])) ) # debug
+                    # batch_start_days_ago = utc_now - all_tweets_in_loop[i][-1]['created_at'] # save the created_at of the oldest tweet
+                else:
+                    print("Failed to retrieve data:", r.status_code, r.text)
+            except requests.RequestException as e:
+                print("\nReceived an error from Twitter. Waiting 30 seconds before retry. Error returned:", e, "\n")
+                time.sleep(30)
+                continue
 
         # Filter tweets by date limit
-        # utc_now = datetime.datetime.now(pytz.utc)
-        # tweets_in_range = list(filter(lambda x: (utc_now - x.includes['users'][0]['created_at']).days < from_days_ago, all_tweets_in_loop[i]))
-        tweets_in_range = all_tweets_in_loop[i]
+        utc_now = datetime.datetime.now(pytz.utc)
+        tweets_in_range = list(filter(lambda x: (utc_now - datetime.datetime.fromisoformat(x['created_at'])).days < from_days_ago, all_tweets_in_loop[i]))
+
+        print('len(tweets_in_range): ' + str(len(tweets_in_range))) # debug
 
         if tweets_in_range:
-            # print("Found %d tweets from term '%s' over the last %d days. Earliest one found %d days ago (%s)" % (len(tweets_in_range), query, from_days_ago, (utc_now - tweets_in_range[-1].includes['users'][0]['created_at']).days, tweets_in_range[-1].includes['users'][0]['created_at']))
-            returned_tweet_data.extend(new_tweets)
+            print("Found %d tweets from term '%s' over the last %d days. Earliest one found %d days ago (%s)" % (len(tweets_in_range), query, from_days_ago, (utc_now - datetime.datetime.fromisoformat(tweets_in_range[-1]['created_at'])).days, datetime.datetime.fromisoformat(tweets_in_range[-1]['created_at'])))
+            returned_tweet_data.extend(tweets_in_range)
         else:
             print("Found 0 tweets from term '%s' over the last %d days." % (query, from_days_ago))
+
+        print('len(returned_tweet_data): ' + str(len(returned_tweet_data))) # debug
         
     return returned_tweet_data
 
@@ -241,14 +208,6 @@ def get_search_results(query_list, batch_size, max_tweets):
 
     # Fetch all tweets from users in list, one by one
     all_tweets = get_all_tweets_from_search_queries(query_list, batch_size, max_tweets)
-
-    # Testing - Print recent tweets from an array
-    # pp = pprint.PrettyPrinter(indent=4)
-    for tweet in all_tweets:
-        print("TWEET:")
-        print(tweet)
-    
-
 
     # ===========================
     # PROCESS TWEETS
