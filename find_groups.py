@@ -12,7 +12,7 @@ from tabulate import tabulate
 
 query= str(input("Enter search term: \n"))
 batch_size = 100 # [10-100 range] per batch
-max_tweets = 500 # required - limit total results to this number
+max_tweets = 300 # required - limit total results to this number
 from_days_ago = 7 # required - limit to previous X days - cannot be more than 7
 
 # Configure additional fields needed
@@ -28,7 +28,7 @@ priority_keywords = str(input("Enter a comma separated list of keywords to look 
 # founder, chair, editor, author, journalist, writer, professor, chancellor, campaigner, TV presenter, broadcaster, trustee, ceo, chief exec, executive
 
 # NB: great list for sports:
-# Community, competition, free, event, spaces, olympic, run, sport, active, activity
+# Community, competition, free, event, spaces, olympic, run, sport, active, activity, charity
 
 
 # =================
@@ -139,7 +139,10 @@ def get_parsed_users_from_raw_json(raw_user_json):
     #     "listed_count":       # x[data][i][public_metrics][listed_count]
     # }
 
-    # print(json.dumps(raw_user_json, indent=4))  # Debugging - print the response JSON
+    # Debug - save json list of tweets found
+    today_str = datetime.datetime.now().strftime("%d-%m-%Y")
+    with open('reports/'+query_list[0]+'-'+today_str+'_raw_users.json', 'w') as file:
+        json.dump(raw_user_json, file, indent=4)
 
     # set variables
     result_count = len(raw_user_json['data'])
@@ -167,7 +170,7 @@ def get_parsed_users_from_raw_json(raw_user_json):
         user_list[i]['followers_count'] = raw_user_json['data'][i]['public_metrics']['followers_count']
         user_list[i]['listed_count'] = raw_user_json['data'][i]['public_metrics']['listed_count']
         # set user_list['url']
-        if ('entities' in raw_user_json['data'][i]) and ('url' in raw_user_json['data'][i]['entities']) and ('urls' in raw_user_json['data'][i]['entities']['url']) and ('expanded_url' in raw_user_json['data'][i]['entities']['url']['urls'][0]['expanded_url']):
+        if ('entities' in raw_user_json['data'][i]) and ('url' in raw_user_json['data'][i]['entities']) and ('urls' in raw_user_json['data'][i]['entities']['url']) and ('expanded_url' in raw_user_json['data'][i]['entities']['url']['urls'][0]):
             user_list[i]['url'] = raw_user_json['data'][i]['entities']['url']['urls'][0]['expanded_url']
         else:
             user_list[i]['url'] = " "
@@ -224,7 +227,8 @@ def get_all_tweets_from_search_queries(query_list, batch_size, max_tweets):
                 print("len(new_tweets): " + str(len(new_tweets))) # debug
                 print(new_tweets) # debug
                 next_token = get_next_token_from_raw_json(r.json()) # get the next page for the paginator
-                print("next_token: " + next_token) # debug
+                if next_token:
+                    print("next_token: " + next_token) # debug
                 all_tweets_in_loop[i].extend(new_tweets) # If tweets found, add them to all_tweets_in_loop
                 print("len(all_tweets_in_loop[i]): " + str( len(all_tweets_in_loop[i])) ) # debug
                 print("...%s tweets downloaded so far" % ( len(all_tweets_in_loop[i])) ) # debug
@@ -421,7 +425,7 @@ def get_search_results(query_list, batch_size, max_tweets):
             if any(substring.upper() in item["description"].upper() for substring in priority_keywords_list):
                 item["priority"] = "yes"
                 priority_user_table.append(item)
-            else: # could be an elif (item["followers_count"] > 100) and (item["mentions_count"] > 1)
+            elif (item["followers_count"] > 100) and (item["mentions_count"] > 1):
                 # get other profiles
                 item["priority"] = "no"
                 other_user_table.append(item)
