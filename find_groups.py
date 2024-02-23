@@ -191,6 +191,16 @@ def batch(iterable, n=1):
 # for x in batch(range(0, 10), 3):
 #     print x
 
+# Pretty print follower count
+def format_follower_count(num):
+    if num >= 1000:
+        return f"{num / 1000:.1f}k"
+    else:
+        return str((num // 100) * 100)
+# Examples
+# print(format_number(136833))  # Output: 136.8k
+# print(format_number(231))     # Output: 200
+
 
 # =================
 # MAIN FUNCTIONS
@@ -408,6 +418,9 @@ def get_search_results(query_list, batch_size, max_tweets):
             # Assemble a useful, understandable object of users that combines the lists together
             line_break = ', '
             item = {
+                "quick_ref_org": user_data[i]['name'] + '\n' + user_data[i]['url'],
+                "quick_ref_tw": format_follower_count(user_data[i]['followers_count']) + ' followers - \n' + "https://www.twitter.com/" + entry["username"],
+                "quick_ref_bio": "Description: “" + user_data[i]['description'] + "”\n\n ",
                 "name": user_data[i]['name'], # retreive from user_data table
                 "username": "@" + entry["username"], # note: we're adding the '@' now after we've embellished the data
                 "profile_url": "https://www.twitter.com/" + entry["username"],
@@ -438,12 +451,12 @@ def get_search_results(query_list, batch_size, max_tweets):
     other_user_table.sort(key=lambda item:item['followers_count'], reverse=True)
     other_user_table.sort(key=lambda item:item['mentions_count'], reverse=True)
     user_table.extend(other_user_table)
-    user_table_headers = ["Name","Username", "Profile URL", "Description", "No. Mentions", "Location", "URL", "Verified", "Follower Count", "Listed Count", "Example Tweet", "Priority", "Notes"]
+    user_table_headers = ["Quick Ref Org", "Quick Ref Twitter", "Quick Ref Bio", "Name", "Username", "Profile URL", "Description", "No. Mentions", "Location", "URL", "Verified", "Follower Count", "Listed Count", "Example Tweet", "Priority", "Notes"]
     user_table_rows = [list(x.values()) for x in user_table]
 
     # print final results to console
-    printable_table_rows = [x[:5] for x in user_table_rows]
-    print(tabulate(printable_table_rows[:5], user_table_headers[:5], tablefmt="psql", maxcolwidths=50))
+    printable_table_rows = [x[3:8] for x in user_table_rows]
+    print(tabulate(printable_table_rows[:5], user_table_headers[3:8], tablefmt="psql", maxcolwidths=50))
 
 
     # WRITE RESULTS TO CSV FILE
