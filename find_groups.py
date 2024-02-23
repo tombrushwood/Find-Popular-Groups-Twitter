@@ -412,14 +412,14 @@ def get_search_results(query_list, batch_size, max_tweets):
                 "username": "@" + entry["username"], # note: we're adding the '@' now after we've embellished the data
                 "profile_url": "https://www.twitter.com/" + entry["username"],
                 "description": user_data[i]['description'], # retreive from user_data table
+                "mentions_count": len(entry["mentioned_by_users"]),
                 "location": user_data[i]['location'], # retreive from user_data table
                 "url": user_data[i]['url'], # retreive from user_data table - might be " "
                 "verified": user_data[i]['verified'], # retreive from user_data table
                 "followers_count": user_data[i]['followers_count'], # retreive from user_data table
                 "listed_count": user_data[i]['listed_count'], # retreive from user_data table
-                "mentions_count": len(entry["mentioned_by_users"]),
-                "mentioned_by_users": line_break.join(entry["mentioned_by_users"][:5]) + ', ...',
-                "example_tweet": re.sub(r"\n|\r", " ", entry["example_tweet"]),
+                # "mentioned_by_users": line_break.join(entry["mentioned_by_users"][:5]) + ', ...',
+                "example_tweet": re.sub(r"\n|\r", " ", entry["example_tweet"])
             }
             # get interesting profiles
             if any(substring.upper() in item["description"].upper() for substring in priority_keywords_list):
@@ -438,12 +438,12 @@ def get_search_results(query_list, batch_size, max_tweets):
     other_user_table.sort(key=lambda item:item['followers_count'], reverse=True)
     other_user_table.sort(key=lambda item:item['mentions_count'], reverse=True)
     user_table.extend(other_user_table)
-    user_table_headers = ["Name","Username", "Profile URL", "Description", "Location", "URL", "Verified", "Follower Count", "Listed Count", "No. Mentions", "Users Who Mentioned Them", "Example Tweet", "Priority", "Notes"]
+    user_table_headers = ["Name","Username", "Profile URL", "Description", "No. Mentions", "Location", "URL", "Verified", "Follower Count", "Listed Count", "Example Tweet", "Priority", "Notes"]
     user_table_rows = [list(x.values()) for x in user_table]
 
     # print final results to console
-    printable_table_rows = [x[:4] for x in user_table_rows]
-    print(tabulate(printable_table_rows[:5], user_table_headers[:4], tablefmt="psql", maxcolwidths=50))
+    printable_table_rows = [x[:5] for x in user_table_rows]
+    print(tabulate(printable_table_rows[:5], user_table_headers[:5], tablefmt="psql", maxcolwidths=50))
 
 
     # WRITE RESULTS TO CSV FILE
