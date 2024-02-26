@@ -13,9 +13,9 @@ from pathlib import Path
 
 query= str(input("Enter one or more search terms separated by commas: \n"))
 batch_size = 100 # [10-100 range] per batch
-max_tweets = 300 # required - limit total results to this number
+max_tweets = 200 # required - limit total results to this number
 from_days_ago = 7 # required - limit to previous X days - cannot be more than 7
-max_users = 100 # required - limit user lookups to this number (will prioritise the most mentioned user accounts)
+max_users = 50 # required - limit user lookups to this number (will prioritise the most mentioned user accounts)
 
 # Configure additional fields needed
 tweet_fields = "created_at,author_id,conversation_id,public_metrics,text"
@@ -453,7 +453,7 @@ def get_search_results(query_list, batch_size, max_tweets):
                 "followers_count": user_data[i]['followers_count'], # retreive from user_data table
                 "listed_count": user_data[i]['listed_count'], # retreive from user_data table
                 # "mentioned_by_users": line_break.join(entry["mentioned_by_users"][:5]) + ', ...',
-                "example_tweet": re.sub(r"\n|\r", " ", entry["example_tweet"])
+                "example_tweet": re.sub(r"\n|\r", " ", entry["example_tweet"]).replace('\"',"'")
             }
             # get interesting profiles
             if any(substring.upper() in item["description"].upper() for substring in priority_keywords_list):
