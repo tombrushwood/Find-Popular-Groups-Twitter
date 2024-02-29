@@ -1,3 +1,11 @@
+# ==========================================================
+# IMPORTANT: 
+# THIS USES THE OLD V1.1 END POINT WHICH IS NO LONGER SUPPORTED.
+# ==========================================================
+
+print("Aborting.")
+quit()
+
 # build_twitter_list.py (Use Twitter Search to build initial list of mavens)
 
 # import base
