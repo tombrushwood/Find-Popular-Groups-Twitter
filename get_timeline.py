@@ -16,9 +16,9 @@ from requests_oauthlib import OAuth1Session
 
 user_name = "tombrushwood" # change
 batch_size = 100 # [10-100 range] per batch
-max_tweets = 300 # 200 - required - limit total results to this number
+max_tweets = 450 # required - limit total results to this number
 from_days_ago = 7 # required - limit to previous X days - cannot be more than 7
-max_users = 50 # required - limit user lookups to this number (will prioritise the most mentioned user accounts)
+max_users = 500 # required - limit user lookups to this number (will prioritise the most mentioned user accounts)
 
 # Configure additional fields needed
 tweet_fields = "created_at,author_id,conversation_id,public_metrics,text"
