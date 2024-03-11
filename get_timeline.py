@@ -19,8 +19,8 @@ from helpers import get_parsed_tweets_from_raw_json, get_parsed_users_from_raw_j
 # =================
 
 user_name = "tombrushwood" # change
-batch_size = 100 # [10-100 range] per batch
-max_tweets = 450 # required - limit total results to this number
+batch_size = 100 # required - [10-100 range] per batch
+max_tweets = 450 # required - limit total results to this number (Note: 5 max requests per 15 mins to this endpoint)
 from_days_ago = 7 # required - limit to previous X days - cannot be more than 7
 max_users = 500 # required - limit user lookups to this number (will prioritise the most mentioned user accounts)
 
@@ -47,7 +47,7 @@ priority_keywords = str(input("Enter a comma separated list of keywords to look 
 # Setup folders
 # ==============
 
-# Ideal file structure = /reports/{date}/{keyword}-{date}_{num days}.csv
+# Ideal file structure = /reports/{date}/timeline-report-{date}_{num days}.csv
 today_str = datetime.datetime.now().strftime("%d-%m-%Y")
 base_dir = "reports/" + today_str + "/"
 debug_dir = base_dir + "debug/"
@@ -111,10 +111,14 @@ def get_all_tweets_from_timeline(user_name, batch_size, max_tweets):
         print("...%s tweets downloaded so far" % ( len(all_tweets_in_loop)) )
     else:
         print("Failed to retrieve data:", response.status_code, response.text)
-        time.sleep(30)
+        # Abort script if we failed to retreive any tweets due to error
+        print("No tweet data. Aborting.")
+        time.sleep(10)
+        quit()
     
     # Keep grabbing tweets until there are no tweets left to grab
-    while ( len(new_tweets) > 0 ) and ( len(all_tweets_in_loop) < max_tweets ) and ( next_token ):
+    no_errors = True
+    while ( len(new_tweets) > 0 ) and ( len(all_tweets_in_loop) < max_tweets ) and ( next_token ) and ( no_errors ):
 
         # Try to get more tweets
         response = get_new_tweets_from_timeline(twitter_client, user_id, next_token)
@@ -128,7 +132,11 @@ def get_all_tweets_from_timeline(user_name, batch_size, max_tweets):
             print("...%s tweets downloaded so far" % ( len(all_tweets_in_loop)) )
         else:
             print("Failed to retrieve data:", response.status_code, response.text)
-            time.sleep(30)
+            # Abort new tweet lookup upon error
+            no_errors = False
+            print("Proceeding with the data that's already been gathered.")
+            time.sleep(10)
+            continue
 
     # Filter tweets by date limit to get tweets_in_range
     utc_now = datetime.datetime.now(pytz.utc)
@@ -229,8 +237,10 @@ def get_search_results(user_id, batch_size, max_tweets):
 
         else:
             print("Failed to retrieve data:", response.status_code, response.text)
-            time.sleep(30)
-            continue
+            # Abort new user lookup upon error
+            print("Proceeding with the user data that's already been collected.")
+            time.sleep(10)
+            break
 
     # print('\nlen(user_data): ' + str(len(user_data))) # debug
     # print(user_data) # debug
@@ -256,7 +266,6 @@ def get_search_results(user_id, batch_size, max_tweets):
             # Create an index for cross comparison of the users_mentioned list and the user_data list
             i = [i for i, dic in enumerate(user_data) if dic['username'] == entry["username"]][0]
             # Assemble a useful, understandable object of users that combines the lists together
-            line_break = ', '
             item = {
                 "quick_ref_org": user_data[i]['name'] + '\n' + user_data[i]['url'],
                 "quick_ref_tw": format_follower_count(user_data[i]['followers_count']) + ' followers - \n' + "https://www.twitter.com/" + entry["username"],
@@ -271,7 +280,6 @@ def get_search_results(user_id, batch_size, max_tweets):
                 "verified": user_data[i]['verified'], # retreive from user_data table
                 "followers_count": user_data[i]['followers_count'], # retreive from user_data table
                 "listed_count": user_data[i]['listed_count'], # retreive from user_data table
-                # "mentioned_by_users": line_break.join(entry["mentioned_by_users"][:5]) + ', ...',
                 "example_tweet": re.sub(r"\n|\r", " ", entry["example_tweet"]).replace('\"',"'")
             }
             # get interesting profiles

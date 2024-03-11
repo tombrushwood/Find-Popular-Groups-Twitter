@@ -95,10 +95,14 @@ def get_all_tweets_from_search_queries(query_list, max_tweets=max_tweets):
             print("...%s tweets downloaded so far" % ( len(all_tweets_in_loop[i])) )
         else:
             print("Failed to retrieve data:", response.status_code, response.text)
-            time.sleep(30)
+            # Abort search term upon error
+            print("Proceeding to next search term.")
+            time.sleep(10)
+            continue
 
         # Keep grabbing tweets until there are no tweets left to grab
-        while ( len(new_tweets) > 0 ) and ( len(all_tweets_in_loop[i]) < max_tweets ) and ( next_token ):
+        no_errors = True
+        while ( len(new_tweets) > 0 ) and ( len(all_tweets_in_loop[i]) < max_tweets ) and ( next_token ) and ( no_errors ):
 
             # Get the next page of tweets
             response = get_new_tweets_from_search(query, next_token)
@@ -112,7 +116,11 @@ def get_all_tweets_from_search_queries(query_list, max_tweets=max_tweets):
                 print("...%s tweets downloaded so far" % ( len(all_tweets_in_loop[i])) )
             else:
                 print("Failed to retrieve data:", response.status_code, response.text)
-                time.sleep(30)
+                # Abort new tweet lookup upon error
+                no_errors = False
+                print("Proceeding with the data that's already been gathered.")
+                time.sleep(10)
+                continue
 
         # Filter tweets by date limit
         utc_now = datetime.datetime.now(pytz.utc)
@@ -216,7 +224,10 @@ def get_search_results(query_list):
 
         else:
             print("Failed to retrieve data:", response.status_code, response.text)
-            time.sleep(30)
+            # Abort new user lookup upon error
+            print("Proceeding with the user data that's already been collected.")
+            time.sleep(10)
+            break
 
     # print('\nlen(user_data): ' + str(len(user_data))) # debug
     # print(user_data) # debug
