@@ -1,4 +1,23 @@
-import re, json
+import re, json, requests, datetime, time
+from pathlib import Path
+
+# For OAuth v2.0 User Context authentification
+from x_auth import BEARER_TOKEN, API_KEY, API_SECRET, ACCESS_TOKEN, ACCESS_TOKEN_SECRET
+
+
+# ==============
+# Setup folders
+# ==============
+
+# Ideal file structure = /reports/{date}/{keyword}-{date}_{num days}.csv
+today_str = datetime.datetime.now().strftime("%d-%m-%Y")
+base_dir = "reports/" + today_str + "/"
+debug_dir = base_dir + "debug/"
+
+def create_folders(debug_dir=debug_dir):
+    print("Reports will be created in: /"+ base_dir)
+    Path(debug_dir).mkdir(parents=True, exist_ok=True)
+
 
 # =================
 # HELPER FUNCTIONS
@@ -65,7 +84,7 @@ def get_parsed_tweets_from_raw_json(raw_tweet_json):
     return tweet_list
 
 # Clean the data and assemble the user_list object
-def get_parsed_users_from_raw_json(raw_user_json, debug_dir, keyword, today_str):
+def get_parsed_users_from_raw_json(raw_user_json, debug_dir=debug_dir, debug_keyword="default", today_str=today_str):
 
     # We already have:
 
@@ -108,7 +127,7 @@ def get_parsed_users_from_raw_json(raw_user_json, debug_dir, keyword, today_str)
     # }
 
     # Debug - save json list of tweets found
-    with open(debug_dir + keyword + '_' + today_str+'_raw_users.json', 'w') as file:
+    with open(debug_dir + debug_keyword + '_' + today_str+'_raw_users.json', 'w') as file:
         json.dump(raw_user_json, file, indent=4)
 
     # set variables
@@ -169,5 +188,145 @@ def format_follower_count(num):
     # Examples
     # print(format_number(136833))  # Output: 136.8k
     # print(format_number(231))     # Output: 200
+
+# Return users_mentioned from all_tweets
+def return_users_mentioned_from_all_tweets(all_tweets):
+
+    # FIND ALL MENTIONED USERS
+    # Note: Now we're going to look at the tweet content and see which users have been mentioned, how many times
+
+    users_mentioned = []
+    for i, tweet in enumerate(all_tweets):
+        if (i > 1) and (i % 100 == 0):
+            print("...%d tweets processed so far out of %d (%s)" % (i, len(all_tweets), str(round(i / len(all_tweets) * 100)) + "%"))
+
+        # process user mentions
+        users_mentioned_in_tweet = re.findall(r'@([\w]+)', tweet['full_text'])
+
+        for user in users_mentioned_in_tweet:
+            # if first entry add new entry, else get index of current user in users_mentioned list, and add new name to list
+            if not [x for x in users_mentioned if x['username'].upper() == user.upper()]:
+                users_mentioned.append(dict(
+                    username = user, # Note: We're not including the '@' as we're going to use this as a search key in a moment
+                    mentioned_by_users = ["@" + tweet['username']],
+                    example_tweet = tweet['full_text']
+                ))
+            else:
+                # get index of where this user is in the users_mentioned list
+                i = [i for i, dic in enumerate(users_mentioned) if dic['username'].upper() == user.upper()][0]
+                # if this user isn't in the mentioned_by_users list, include it
+                if ("@" + tweet['username']) not in users_mentioned[i]["mentioned_by_users"]:
+                    users_mentioned[i]["mentioned_by_users"].append("@" + tweet['username'])
+                    # and if this user's post was richer in detail than our existing example_tweet, replace it
+                    if len(tweet['full_text']) > len(users_mentioned[i]["example_tweet"]):
+                        users_mentioned[i]["example_tweet"] = tweet['full_text']
+
+    # print('\nlen(users_mentioned): ' + str(len(users_mentioned))) # debug
+    # print(users_mentioned) # debug
+    return users_mentioned
+
+# Return user_data from users_mentioned
+def get_user_data_for_users_mentioned(users_mentioned, max_users=100, debug_keyword="debug"):
+    
+    # GET USER DATA FOR MENTIONED USERS
+    # Note: We now have a list of users mentioned in tweets (users_mentioned), but we don't know much about them - time to get information about who they are
+
+    # First, let's sanitise the users_mentioned list to exclude users who don't match the correct regex pattern, and return only valid_users
+    valid_regex_pattern = re.compile(r'^[A-Za-z0-9_]{1,15}$')
+    valid_users = [user for user in users_mentioned if valid_regex_pattern.match(user['username'])]
+
+    # Ideally, we just want to get the top mentioned users so we don't do unneccessary data lookups, so let's sort valid_users by most mentioned, and just return an amount defined by max_users
+    valid_users.sort(key=lambda x: len(x["mentioned_by_users"]), reverse=True)
+
+    user_data = []
+    # we're using username as a search key to find the data - just get the most mentioned users for efficiency
+    all_usernames = [u['username'] for u in valid_users[:max_users]]
+    for batch_usernames in batch(all_usernames, 100):
+        # Lookup users request
+        url = 'https://api.twitter.com/2/users/by'
+        headers = { 'Authorization': 'Bearer ' + BEARER_TOKEN }
+        user_ids = ",".join(batch_usernames)
+        user_fields = "name,username,verified,description,public_metrics,location,entities,url"
+        query_string = (f'?usernames={user_ids}&user.fields={user_fields}')
+        response = requests.get(url + query_string, headers=headers)
+
+        # If the request was successful
+        if response.status_code == 200: 
+            new_users = get_parsed_users_from_raw_json(response.json(), debug_keyword=debug_keyword)
+            user_data.extend(new_users)
+            print("Found %d users so far" % len(user_data))
+
+        else:
+            print("Failed to retrieve data:", response.status_code, response.text)
+            # Abort new user lookup upon error
+            print("Proceeding with the user data that's already been collected.")
+            time.sleep(10)
+            break
+
+    # print('\nlen(user_data): ' + str(len(user_data))) # debug
+    # print(user_data) # debug
+    return valid_users, user_data
+
+# Return user_table_headers and user_table_rows from valid_users and user_data lists
+def create_user_table_from_user_data(valid_users, user_data, priority_keywords, max_users=100):
+
+    # CONSTRUCT USER TABLE
+    # Note: So now we have a list of users mentioned (valid_users), and we have some extra information about each user (user_data) - now we need to combine them to get something readable and useable
+
+    # get list of keywords to prioritise
+    priority_keywords_list = [x.strip() for x in priority_keywords.split(",")]
+
+    user_table = []
+    priority_user_table = []
+    other_user_table = []
+    # just export the most mentioned users
+    for entry in valid_users[:max_users]:
+        # locate index of user
+        try:
+            # Create an index for cross comparison of the valid_users list and the user_data list
+            i = [i for i, dic in enumerate(user_data) if dic['username'] == entry["username"]][0]
+            # Assemble a useful, understandable object of users that combines the lists together
+            item = {
+                "quick_ref_org": user_data[i]['name'] + '\n' + user_data[i]['url'],
+                "quick_ref_tw": format_follower_count(user_data[i]['followers_count']) + ' followers - \n' + "https://www.twitter.com/" + entry["username"],
+                "quick_ref_bio": "Description: “" + user_data[i]['description'] + "”\n\n ",
+                "name": user_data[i]['name'], # retreive from user_data table
+                "username": "@" + entry["username"], # note: we're adding the '@' now after we've embellished the data
+                "profile_url": "https://www.twitter.com/" + entry["username"],
+                "description": user_data[i]['description'], # retreive from user_data table
+                "mentions_count": len(entry["mentioned_by_users"]),
+                "location": user_data[i]['location'], # retreive from user_data table
+                "url": user_data[i]['url'], # retreive from user_data table - might be " "
+                "verified": user_data[i]['verified'], # retreive from user_data table
+                "followers_count": user_data[i]['followers_count'], # retreive from user_data table
+                "listed_count": user_data[i]['listed_count'], # retreive from user_data table
+                "example_tweet": re.sub(r"\n|\r", " ", entry["example_tweet"]).replace('\"',"'")
+            }
+            # get interesting profiles
+            if any(substring.upper() in item["description"].upper() for substring in priority_keywords_list):
+                item["priority"] = "yes"
+                priority_user_table.append(item)
+            elif (item["followers_count"] > 100) and (item["mentions_count"] > 1):
+                # get other profiles
+                item["priority"] = "no"
+                other_user_table.append(item)
+        except IndexError as e:
+            print("tried to find user '%s', but they may have been suspended or deleted. Error reported: %s" % (entry["username"], e))
+
+    # Add users who match the priority keywords first
+    priority_user_table.sort(key=lambda item:item['followers_count'], reverse=True)
+    priority_user_table.sort(key=lambda item:item['mentions_count'], reverse=True)
+    user_table.extend(priority_user_table)
+
+    # Then add any all users found
+    other_user_table.sort(key=lambda item:item['followers_count'], reverse=True)
+    other_user_table.sort(key=lambda item:item['mentions_count'], reverse=True)
+    user_table.extend(other_user_table)
+
+    # Finally, return the data in the form of an exportable table
+    user_table_headers = ["Quick Ref Org", "Quick Ref Twitter", "Quick Ref Bio", "Name", "Username", "Profile URL", "Description", "No. Mentions", "Location", "URL", "Verified", "Follower Count", "Listed Count", "Example Tweet", "Priority", "Notes"]
+    user_table_rows = [list(x.values()) for x in user_table]
+    
+    return user_table_headers, user_table_rows
 
 #
