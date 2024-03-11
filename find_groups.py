@@ -200,13 +200,17 @@ def get_search_results(query_list):
         print("\nlooking up the %d most frequently mentioned users" % max_users)
     else:
         print("\nlooking up all %d users mentioned" % len(users_mentioned))
+    
+    # First, let's sanitise the users_mentioned list to exclude users who don't match the correct regex pattern, and return only valid_users
+    valid_regex_pattern = re.compile(r'^[A-Za-z0-9_]{1,15}$')
+    valid_users = [user for user in users_mentioned if valid_regex_pattern.match(user['username'])]
 
-    # Ideally, we just want to get the top mentioned users so we don't do unneccessary data lookups, so let's sort users_mentioned by most mentioned, and just return the first 100
-    users_mentioned.sort(key=lambda x: len(x["mentioned_by_users"]), reverse=True)
+    # Ideally, we just want to get the top mentioned users so we don't do unneccessary data lookups, so let's sort valid_users by most mentioned, and just return an amount defined by max_users
+    valid_users.sort(key=lambda x: len(x["mentioned_by_users"]), reverse=True)
 
     user_data = []
     # we're using username as a search key to find the data - just get the most mentioned users for efficiency
-    all_usernames = [u['username'] for u in users_mentioned[:max_users]]
+    all_usernames = [u['username'] for u in valid_users[:max_users]]
     for batch_usernames in batch(all_usernames, 100):
         # Lookup users request
         url = 'https://api.twitter.com/2/users/by'
@@ -238,7 +242,7 @@ def get_search_results(query_list):
 
     
     # CONSTRUCT USER TABLE
-    # Note: So now we have a list of users mentioned (users_mentioned), and we have some extra information about each user (user_data) - now we need to combine them to get something readable and useable
+    # Note: So now we have a list of users mentioned (valid_users), and we have some extra information about each user (user_data) - now we need to combine them to get something readable and useable
 
     # get list of keywords to prioritise
     priority_keywords_list = [x.strip() for x in priority_keywords.split(",")]
@@ -247,10 +251,10 @@ def get_search_results(query_list):
     priority_user_table = []
     other_user_table = []
     # just export the most mentioned users
-    for entry in users_mentioned[:max_users]:
+    for entry in valid_users[:max_users]:
         # locate index of user
         try:
-            # Create an index for cross comparison of the users_mentioned list and the user_data list
+            # Create an index for cross comparison of the valid_users list and the user_data list
             i = [i for i, dic in enumerate(user_data) if dic['username'] == entry["username"]][0]
             # Assemble a useful, understandable object of users that combines the lists together
             item = {
